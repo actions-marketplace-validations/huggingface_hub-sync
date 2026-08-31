@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: huggingface/hub-sync@v0.2.1
+      - uses: huggingface/hub-sync@v0.3.0
         with:
           github_repo_id: ${{ github.repository }}
           huggingface_repo_id: username/repo-name
@@ -31,7 +31,7 @@ jobs:
 ### All Options
 
 ```yaml
-- uses: huggingface/hub-sync@v0.2.1
+- uses: huggingface/hub-sync@v0.3.0
   with:
     # Required
     github_repo_id: ${{ github.repository }}
@@ -63,7 +63,7 @@ Patterns are `fnmatch` globs. Gitignore syntax does not apply. `*` crosses direc
 
 ## Features
 
-- **Automatic exclusions** — `.github/` and `.git/` always filtered, and cannot be disabled
+- **Automatic exclusions** — git metadata always filtered at any depth, and cannot be disabled
 - **User-defined patterns** — add your own `exclude` rules or an `include` allowlist
 - **True mirroring** — deletes removed files from HF, or set `delete_removed: false` to only ever add
 - **Subdirectory support** — suitable for monorepos
