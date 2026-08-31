@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: huggingface/hub-sync@v0.2.1
+      - uses: huggingface/hub-sync@v0.3.0
         with:
           github_repo_id: ${{ github.repository }}
           huggingface_repo_id: username/repo-name
@@ -31,7 +31,7 @@ jobs:
 ### All Options
 
 ```yaml
-- uses: huggingface/hub-sync@v0.2.1
+- uses: huggingface/hub-sync@v0.3.0
   with:
     # Required
     github_repo_id: ${{ github.repository }}
@@ -54,7 +54,15 @@ jobs:
 
 ### Filtering what gets synced
 
-Git metadata is always excluded and cannot be turned off: `.git*` and `*/.git*`, which covers `.git/`, `.gitignore`, `.github/` and any nested copies. `exclude` adds to that list, `include` is an allowlist, so when it is set only matching files are uploaded. Blank lines and `#` comments are ignored.
+Three patterns are always excluded and cannot be turned off:
+
+- `.git*` at the root — covers `.git/`, `.gitignore`, `.gitattributes`, `.github/`
+- `*/.git/` at any depth — a submodule's git directory
+- `*/.github/` at any depth — nested CI config
+
+Nested dotfiles still sync, so `templates/.gitignore` and `docs/.gitkeep` reach the Hub.
+
+`exclude` adds to that list. `include` is an allowlist: set it and only matching files upload. Blank lines and `#` comments are ignored.
 
 Patterns are `fnmatch` globs. Gitignore syntax does not apply. `*` crosses directory boundaries, so `data/*` matches `data/sub/deep.json` and `**` is never needed. A trailing slash matches a directory's contents, so `node_modules/` works. Matching is case-sensitive on every platform.
 
@@ -63,7 +71,7 @@ Patterns are `fnmatch` globs. Gitignore syntax does not apply. `*` crosses direc
 
 ## Features
 
-- **Automatic exclusions** — `.github/` and `.git/` always filtered, and cannot be disabled
+- **Automatic exclusions** — root git metadata plus nested `.git/` and `.github/` directories, and cannot be disabled
 - **User-defined patterns** — add your own `exclude` rules or an `include` allowlist
 - **True mirroring** — deletes removed files from HF, or set `delete_removed: false` to only ever add
 - **Subdirectory support** — suitable for monorepos
