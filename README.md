@@ -2,7 +2,7 @@
 
 A GitHub Action that syncs your repository to Hugging Face Hub 🤗
 
-Uses the official HF CLI via `uvx` for fast, reliable deployments to Spaces, Models, or Datasets.
+Uses the official HF CLI via `uvx` to deploy to Spaces, Models, or Datasets.
 
 ## Quick Start
 
@@ -43,12 +43,28 @@ jobs:
     space_sdk: gradio             # gradio | streamlit | docker | static (default: gradio)
     private: false                # Create as private (default: false)
     subdirectory: ''              # Sync only this folder (default: '' = root)
+    exclude: |                    # Extra patterns to skip, one per line
+      *.env
+      node_modules/
+    include: |                    # Allowlist, if set, only these are uploaded
+      *.py
+    delete_removed: true          # Remove Hub files outside the upload set (default: true)
     hf_version: ''                # Pin the hf CLI version (default: '' = latest)
 ```
 
+### Filtering what gets synced
+
+Git metadata is always excluded and cannot be turned off: `.git*` and `*/.git*`, which covers `.git/`, `.gitignore`, `.github/` and any nested copies. `exclude` adds to that list, `include` is an allowlist, so when it is set only matching files are uploaded. Blank lines and `#` comments are ignored.
+
+Patterns are `fnmatch` globs. Gitignore syntax does not apply. `*` crosses directory boundaries, so `data/*` matches `data/sub/deep.json` and `**` is never needed. A trailing slash matches a directory's contents, so `node_modules/` works. Matching is case-sensitive on every platform.
+
+> [!WARNING]
+> By default the action mirrors, so a filtered-out file is **deleted from the Hub** if it is already there. Excluding a path removes the Hub copy too. If the Hub repo holds files written by something else — a training job, a separate upload — set `delete_removed: false` to upload without deleting anything.
+
 ## Features
 
-- **Automatic exclusions** — `.github/` and `.git/` filtered via `--exclude`
-- **True mirroring** — deletes removed files from HF using `--delete="*"`
-- **Subdirectory support** — perfect for monorepos
+- **Automatic exclusions** — `.github/` and `.git/` always filtered, and cannot be disabled
+- **User-defined patterns** — add your own `exclude` rules or an `include` allowlist
+- **True mirroring** — deletes removed files from HF, or set `delete_removed: false` to only ever add
+- **Subdirectory support** — suitable for monorepos
 - **Source-aware commit messages** — synced commits identify the originating GitHub repository

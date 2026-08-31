@@ -31,6 +31,18 @@ inputs:
     required: false
     description: 'Whether the repository should be private'
     default: 'false'
+  exclude:
+    required: false
+    description: 'Extra glob patterns to exclude, one per line. Git metadata (.git*, including .github/) is always excluded.'
+    default: ''
+  include:
+    required: false
+    description: 'Glob patterns to upload, one per line. If set, only matching files are uploaded.'
+    default: ''
+  delete_removed:
+    required: false
+    description: 'Delete Hub files that are outside the upload set. Set to false to leave them untouched.'
+    default: 'true'
   hf_version:
     required: false
     description: 'hf CLI package version to pin. Leave unset to install the latest published version.'
@@ -54,9 +66,17 @@ runs:
         PRIVATE: ${{ inputs.private }}
         SPACE_SDK: ${{ inputs.space_sdk }}
         SUBDIRECTORY: ${{ inputs.subdirectory }}
+        EXCLUDE_PATTERNS: ${{ inputs.exclude }}
+        INCLUDE_PATTERNS: ${{ inputs.include }}
+        DELETE_REMOVED: ${{ inputs.delete_removed }}
         HF_VERSION: ${{ inputs.hf_version }}
       run: |
         set -euo pipefail
+
+        if [[ "${DELETE_REMOVED}" != "true" && "${DELETE_REMOVED}" != "false" ]]; then
+          echo "::error::delete_removed must be 'true' or 'false', got '${DELETE_REMOVED}'"
+          exit 1
+        fi
 
         # Resolve the hf CLI invocation. If hf_version is set, pin the dedicated
         # hf package to that version; otherwise install the latest published version.
@@ -82,6 +102,13 @@ runs:
         fi
         if [[ -n "${SUBDIRECTORY}" ]]; then
           echo "Subdirectory: ${SUBDIRECTORY}"
+        fi
+        echo "Delete removed files: ${DELETE_REMOVED}"
+        if [[ -n "${INCLUDE_PATTERNS//[[:space:]]/}" ]]; then
+          echo "Include patterns: $(echo "${INCLUDE_PATTERNS}" | paste -sd' ' -)"
+        fi
+        if [[ -n "${EXCLUDE_PATTERNS//[[:space:]]/}" ]]; then
+          echo "Extra exclude patterns: $(echo "${EXCLUDE_PATTERNS}" | paste -sd' ' -)"
         fi
         echo "::endgroup::"
 
@@ -113,28 +140,53 @@ runs:
           echo "Using subdirectory: ${SRC_DIR}"
         fi
         
-        # Count files to upload, excluding .git* and .github*
-        FILE_COUNT=$(find "${SRC_DIR}" -type f ! -path '*/.git/*' ! -path '*/.github/*' | wc -l | tr -d ' ')
+        # Count files to upload, matching the base exclusions below
+        FILE_COUNT=$(find "${SRC_DIR}" -type f ! -path '*/.git*' | wc -l | tr -d ' ')
         
         if [[ ${FILE_COUNT} -eq 0 ]]; then
           echo "::error::No files to upload. Check that your repository has files."
           exit 1
         fi
         
+        # Always enforced, hf globs '*' across '/', so '.git*' covers '.github/' and '*/.git*' covers nested copies.
+        EXCLUDE_ARGS=(--exclude=".git*" --exclude="*/.git*")
+        USER_EXCLUDES=0
+        while read -r pattern; do
+          [[ -z "${pattern}" || "${pattern}" == \#* ]] && continue
+          EXCLUDE_ARGS+=(--exclude="${pattern}")
+          USER_EXCLUDES=$((USER_EXCLUDES + 1))
+        done <<< "${EXCLUDE_PATTERNS}"
+
+        # An allowlist: when non-empty, only matching files are uploaded.
+        INCLUDE_ARGS=()
+        while read -r pattern; do
+          [[ -z "${pattern}" || "${pattern}" == \#* ]] && continue
+          INCLUDE_ARGS+=(--include="${pattern}")
+        done <<< "${INCLUDE_PATTERNS}"
+
         # Upload contents directly (true mirror)
         # hf upload works over HTTP, no local git repo or staging needed
-        # --delete="*" ensures remote files not present locally are removed
-        # --exclude filters .git* and .github* from being uploaded
+        UPLOAD_CMD=("${HF[@]}" upload "${HF_REPO_ID}" "${SRC_DIR}" --type "${REPO_TYPE}")
+        UPLOAD_CMD+=("${EXCLUDE_ARGS[@]}")
+
+        # Guard the expansion: bash 3.2 errors on an empty array under `set -u`.
+        if [[ ${#INCLUDE_ARGS[@]} -gt 0 ]]; then
+          UPLOAD_CMD+=("${INCLUDE_ARGS[@]}")
+        fi
+
+        if [[ "${DELETE_REMOVED}" == "true" ]]; then
+          # hf deletes every Hub file outside the upload set, filtered files included.
+          if [[ ${USER_EXCLUDES} -gt 0 || ${#INCLUDE_ARGS[@]} -gt 0 ]]; then
+            echo "::warning::Files filtered out by your include/exclude patterns will be DELETED from the Hub. Set delete_removed: false to leave them in place."
+          fi
+          UPLOAD_CMD+=(--delete="*")
+        fi
+
+        UPLOAD_CMD+=(--commit-message="Sync from ${GITHUB_REPO_ID} via hub-sync")
+
         echo "::group::Uploading to Hugging Face"
-        echo "Uploading ${FILE_COUNT} files..."
-        "${HF[@]}" upload \
-          "${HF_REPO_ID}" \
-          "${SRC_DIR}" \
-          --type "${REPO_TYPE}" \
-          --exclude=".git*" \
-          --exclude=".github*" \
-          --delete="*" \
-          --commit-message="Sync from ${GITHUB_REPO_ID} via hub-sync"
+        echo "Uploading from ${SRC_DIR} (${FILE_COUNT} files before include/exclude filtering)..."
+        "${UPLOAD_CMD[@]}"
         echo "::endgroup::"
         
         # Build the correct HF URL based on repo type:
