@@ -54,7 +54,7 @@ jobs:
 
 ### Filtering what gets synced
 
-`.git*` and `.github*` are always excluded and cannot be turned off. `exclude` adds to that list, `include` is an allowlist, so when it is set only matching files are uploaded. Blank lines and `#` comments are ignored.
+Git metadata is always excluded and cannot be turned off: `.git*` and `*/.git*`, which covers `.git/`, `.gitignore`, `.github/` and any nested copies. `exclude` adds to that list, `include` is an allowlist, so when it is set only matching files are uploaded. Blank lines and `#` comments are ignored.
 
 Patterns are `fnmatch` globs. Gitignore syntax does not apply. `*` crosses directory boundaries, so `data/*` matches `data/sub/deep.json` and `**` is never needed. A trailing slash matches a directory's contents, so `node_modules/` works. Matching is case-sensitive on every platform.
 
