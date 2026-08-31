@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: huggingface/hub-sync@v0.1.0
+      - uses: huggingface/hub-sync@v0.2.1
         with:
           github_repo_id: ${{ github.repository }}
           huggingface_repo_id: username/repo-name
@@ -31,7 +31,7 @@ jobs:
 ### All Options
 
 ```yaml
-- uses: huggingface/hub-sync@v0.1.0
+- uses: huggingface/hub-sync@v0.2.1
   with:
     # Required
     github_repo_id: ${{ github.repository }}
@@ -43,6 +43,7 @@ jobs:
     space_sdk: gradio             # gradio | streamlit | docker | static (default: gradio)
     private: false                # Create as private (default: false)
     subdirectory: ''              # Sync only this folder (default: '' = root)
+    hf_version: ''                # Pin the hf CLI version (default: '' = latest)
 ```
 
 ## Features
