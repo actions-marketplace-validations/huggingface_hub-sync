@@ -33,7 +33,7 @@ inputs:
     default: 'false'
   exclude:
     required: false
-    description: 'Extra glob patterns to exclude, one per line. Git metadata (.git*, including .github/) is always excluded.'
+    description: 'Extra glob patterns to exclude, one per line. Root .git* and any nested .git/ or .github/ are always excluded.'
     default: ''
   include:
     required: false
@@ -140,16 +140,16 @@ runs:
           echo "Using subdirectory: ${SRC_DIR}"
         fi
         
-        # Count files to upload, matching the base exclusions below
-        FILE_COUNT=$(find "${SRC_DIR}" -type f ! -path '*/.git*' | wc -l | tr -d ' ')
+        # Rough pre-flight count, the real filtering happens in hf upload below
+        FILE_COUNT=$(find "${SRC_DIR}" -type f ! -path '*/.git/*' ! -path '*/.github/*' | wc -l | tr -d ' ')
         
         if [[ ${FILE_COUNT} -eq 0 ]]; then
           echo "::error::No files to upload. Check that your repository has files."
           exit 1
         fi
         
-        # Always enforced, hf globs '*' across '/', so '.git*' covers '.github/' and '*/.git*' covers nested copies.
-        EXCLUDE_ARGS=(--exclude=".git*" --exclude="*/.git*")
+        # Always enforced: root git metadata, plus git and CI directories nested anywhere.
+        EXCLUDE_ARGS=(--exclude=".git*" --exclude="*/.git/" --exclude="*/.github/")
         USER_EXCLUDES=0
         while read -r pattern; do
           [[ -z "${pattern}" || "${pattern}" == \#* ]] && continue
